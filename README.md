@@ -51,11 +51,26 @@ docker compose run --rm --device /dev/gpiochip0 dev \
 
 The user running Docker still needs permission to access the GPIO device.
 
+### Why libgpiod is built from source
+
+The Rust `libgpiod` crate currently requires libgpiod 2.x. Debian Bookworm's
+standard package provides libgpiod 1.6.x, which is too old, so the Docker image
+clones the pinned libgpiod 2.2.2 source and builds it natively. This also gives
+the Rust binding generator the matching 2.x headers and keeps local builds
+consistent with the Raspberry Pi cross-builds.
+
+This is still a native libgpiod integration: the CLI links to the C library and
+uses Linux's GPIO character-device API. Building the library in the image only
+ensures that the required version, headers, and ABI are available; it does not
+replace libgpiod with a Rust GPIO implementation.
+
 ## Raspberry Pi cross-compilation with dockcross
 
 Both commands build a custom dockcross image. The image cross-compiles and
-installs libgpiod 2.2.2, installs the matching Rust target, and then links the
-Rust binary against that target library.
+installs libgpiod 2.2.2 from source, installs the matching Rust target, and then
+links the Rust binary against that target library. Building libgpiod inside the
+target image is important: it produces ARM-compatible headers and libraries
+instead of accidentally linking the host x86-64 libgpiod.
 
 ```sh
 make pi32  # Raspberry Pi OS 32-bit, ARMv7 hard-float

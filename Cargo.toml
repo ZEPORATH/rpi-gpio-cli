@@ -1,0 +1,9 @@
+[package]
+name = "gpio-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Small native libgpiod GPIO command-line tool"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+libgpiod = "1.0.0"
