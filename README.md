@@ -1,0 +1,78 @@
+# gpio-cli
+
+A small Linux GPIO CLI written in Rust. It uses the safe `libgpiod` crate over
+the native libgpiod 2.x C library and the Linux GPIO character-device API.
+
+Pins are GPIO **line offsets**, not Raspberry Pi header pin numbers or BCM names.
+The default chip is `/dev/gpiochip0`.
+
+## Commands
+
+```text
+gpio-cli [--chip PATH] read <pin>
+gpio-cli [--chip PATH] write <pin> <HIGH|LOW|1|0> [--for <duration>]
+```
+
+Examples:
+
+```sh
+gpio-cli read 17
+gpio-cli write 17 HIGH
+gpio-cli write 17 HIGH --for 10s
+gpio-cli write 17 LOW --for 500ms
+gpio-cli write 17 0
+gpio-cli --chip /dev/gpiochip4 read 17
+```
+
+The `--for` option accepts milliseconds (`500ms`), seconds (`10s`), minutes
+(`2m`), or bare seconds (`10`). It keeps the process and libgpiod line request
+alive for that duration. Without `--for`, the process releases the line
+immediately after writing. Linux does not guarantee an output remains driven
+after release.
+
+## Native Docker development
+
+No host Rust or libgpiod installation is needed:
+
+```sh
+make check
+make test
+make build
+```
+
+The native release binary is written to `target/release/gpio-cli` in the Docker
+volume. To run against host GPIO hardware, build first and use a one-shot
+container with the GPIO device passed through:
+
+```sh
+docker compose run --rm --device /dev/gpiochip0 dev \
+  cargo run --release -- read 17
+```
+
+The user running Docker still needs permission to access the GPIO device.
+
+## Raspberry Pi cross-compilation with dockcross
+
+Both commands build a custom dockcross image. The image cross-compiles and
+installs libgpiod 2.2.2, installs the matching Rust target, and then links the
+Rust binary against that target library.
+
+```sh
+make pi32  # Raspberry Pi OS 32-bit, ARMv7 hard-float
+make pi64  # Raspberry Pi OS 64-bit, AArch64
+```
+
+Outputs:
+
+```text
+cross-target/armv7-unknown-linux-gnueabihf/release/gpio-cli
+cross-target/aarch64-unknown-linux-gnu/release/gpio-cli
+```
+
+Copy the matching binary to the Pi. Because libgpiod is dynamically linked, the
+Pi must have libgpiod 2.x installed (for Raspberry Pi OS: `libgpiod3` on newer
+releases). Verify with `ldd ./gpio-cli` on the Pi.
+
+Raspberry Pi 1 and Pi Zero use ARMv6 and are not covered by the `pi32` target.
+For Pi 2 and newer running a 32-bit OS, use `pi32`; for a 64-bit OS, use `pi64`.
+# rpi-gpio-cli
