@@ -11,6 +11,8 @@ The default chip is `/dev/gpiochip0`.
 ```text
 gpio-cli [--chip PATH] read <pin>
 gpio-cli [--chip PATH] write <pin> <HIGH|LOW|1|0> [--for <duration>]
+gpio-cli [--chip PATH] write-all <HIGH|LOW|1|0> [--for <duration>]
+gpio-cli [--chip PATH] sequence <config.json>
 ```
 
 Examples:
@@ -21,6 +23,7 @@ gpio-cli write 17 HIGH
 gpio-cli write 17 HIGH --for 10s
 gpio-cli write 17 LOW --for 500ms
 gpio-cli write 17 0
+gpio-cli write-all LOW --for 10s
 gpio-cli --chip /dev/gpiochip4 read 17
 ```
 
@@ -29,6 +32,27 @@ The `--for` option accepts milliseconds (`500ms`), seconds (`10s`), minutes
 alive for that duration. Without `--for`, the process releases the line
 immediately after writing. Linux does not guarantee an output remains driven
 after release.
+
+`write-all` requests every line exposed by the selected GPIO chip and sets each
+one as an output. This can affect board functions such as I2C, SPI, UART, power
+control, or reset lines. It fails if any requested line is in use by another
+consumer, so use it only on a GPIO chip whose lines are safe to control.
+
+### HIL sequence runner
+
+[`hil-sequence.json`](hil-sequence.json) contains the provided relay and reed
+configuration. Run it on the Pi with:
+
+```sh
+./gpio-cli sequence hil-sequence.json
+```
+
+The runner drives every `io_mode: "write"` peripheral with a direct `pin`
+HIGH for five seconds, then LOW for five seconds. It prints every transition
+and reads each `io_mode: "read"` peripheral at each transition. The sample
+runs three cycles; remove `cycles` to repeat until interrupted. The stepper is
+not toggled by this relay sequence because it has `pin_dir`, `pin_enable`, and
+`pin_step` rather than one direct output pin.
 
 ## Native Docker development
 

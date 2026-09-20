@@ -6,8 +6,10 @@ use libgpiod::{
     request::Config as RequestConfig,
 };
 
+mod sequence;
+
 const DEFAULT_CHIP: &str = "/dev/gpiochip0";
-const CONSUMER: &str = "gpio-cli";
+pub(crate) const CONSUMER: &str = "gpio-cli";
 
 #[derive(Debug, PartialEq)]
 enum Command {
@@ -18,6 +20,13 @@ enum Command {
         pin: u32,
         value: Value,
         hold_for: Option<Duration>,
+    },
+    WriteAll {
+        value: Value,
+        hold_for: Option<Duration>,
+    },
+    Sequence {
+        config_path: PathBuf,
     },
 }
 
@@ -39,7 +48,7 @@ impl fmt::Display for CliError {
 impl Error for CliError {}
 
 fn usage() -> &'static str {
-    "Usage:\n  gpio-cli [--chip PATH] read <pin>\n  gpio-cli [--chip PATH] write <pin> <HIGH|LOW|1|0> [--for <duration>]\n\nDurations: 500ms, 10s, 2m (default unit: seconds)"
+    "Usage:\n  gpio-cli [--chip PATH] read <pin>\n  gpio-cli [--chip PATH] write <pin> <HIGH|LOW|1|0> [--for <duration>]\n  gpio-cli [--chip PATH] write-all <HIGH|LOW|1|0> [--for <duration>]\n  gpio-cli [--chip PATH] sequence <config.json>\n\nDurations: 500ms, 10s, 2m (default unit: seconds)"
 }
 
 fn parse_value(raw: &str) -> Result<Value, CliError> {
@@ -134,6 +143,29 @@ where
                 hold_for,
             }
         }
+        Some("write-all") => {
+            let value = parse_value(
+                &args
+                    .next()
+                    .ok_or_else(|| CliError("write-all requires <value>".into()))?,
+            )?;
+            let hold_for = match args.next().as_deref() {
+                Some("--for") => {
+                    Some(parse_duration(&args.next().ok_or_else(|| {
+                        CliError("--for requires a duration".into())
+                    })?)?)
+                }
+                Some(extra) => return Err(CliError(format!("unexpected argument '{extra}'"))),
+                None => None,
+            };
+            Command::WriteAll { value, hold_for }
+        }
+        Some("sequence") => Command::Sequence {
+            config_path: PathBuf::from(
+                args.next()
+                    .ok_or_else(|| CliError("sequence requires <config.json>".into()))?,
+            ),
+        },
         Some("help" | "--help" | "-h") => return Err(CliError(usage().into())),
         Some(command) => return Err(CliError(format!("unknown command '{command}'"))),
         None => return Err(CliError("missing command".into())),
@@ -168,6 +200,30 @@ fn request_line(
     Ok(chip.request_lines(Some(&request_config), &line_config)?)
 }
 
+fn request_all_lines(
+    chip_path: &PathBuf,
+    value: Value,
+) -> Result<(libgpiod::request::Request, usize), Box<dyn Error>> {
+    let chip = Chip::open(chip_path)?;
+    let offsets = (0..chip.info()?.num_lines() as u32).collect::<Vec<_>>();
+
+    let mut settings = Settings::new()?;
+    settings.set_direction(Direction::Output)?;
+    settings.set_output_value(value)?;
+
+    let mut line_config = LineConfig::new()?;
+    line_config.add_line_settings(&offsets, settings)?;
+
+    let mut request_config = RequestConfig::new()?;
+    request_config.set_consumer(CONSUMER)?;
+
+    let line_count = offsets.len();
+    Ok((
+        chip.request_lines(Some(&request_config), &line_config)?,
+        line_count,
+    ))
+}
+
 fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
     match cli.command {
         Command::Read { pin } => {
@@ -200,6 +256,21 @@ fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
                 thread::sleep(duration);
             }
         }
+        Command::WriteAll { value, hold_for } => {
+            let (_request, line_count) = request_all_lines(&cli.chip, value)?;
+            println!(
+                "set {line_count} lines {}",
+                if value == Value::Active {
+                    "HIGH"
+                } else {
+                    "LOW"
+                }
+            );
+            if let Some(duration) = hold_for {
+                thread::sleep(duration);
+            }
+        }
+        Command::Sequence { config_path } => sequence::run(&cli.chip, &config_path)?,
     }
     Ok(())
 }
@@ -273,5 +344,19 @@ mod tests {
         );
         assert_eq!(parse_duration("2m").unwrap(), Duration::from_secs(120));
         assert!(parse_duration("0s").is_err());
+    }
+
+    #[test]
+    fn parses_timed_write_all() {
+        assert_eq!(
+            parse_args(["write-all", "LOW", "--for", "10s"]).unwrap(),
+            Cli {
+                chip: PathBuf::from(DEFAULT_CHIP),
+                command: Command::WriteAll {
+                    value: Value::InActive,
+                    hold_for: Some(Duration::from_secs(10)),
+                },
+            }
+        );
     }
 }

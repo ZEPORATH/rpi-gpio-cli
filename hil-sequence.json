@@ -1,0 +1,70 @@
+{
+  "phase_duration_ms": 5000,
+  "cycles": 3,
+  "peripherals": [
+    {
+      "id": "REED_UP",
+      "type": "reed",
+      "io_device_id": "rpi_gpio",
+      "pin": 23,
+      "io_mode": "read",
+      "monitoring_interval_ms": 100
+    },
+    {
+      "id": "REED_DOWN",
+      "type": "reed",
+      "io_device_id": "rpi_gpio",
+      "pin": 24,
+      "io_mode": "read",
+      "monitoring_interval_ms": 100
+    },
+    {
+      "id": "RELAY_DIMMER",
+      "type": "relay",
+      "pin": 18,
+      "default": 0,
+      "io_device_id": "rpi_gpio",
+      "io_mode": "write"
+    },
+    {
+      "id": "RELAY_FAN_0",
+      "type": "relay",
+      "pin": 17,
+      "default": 0,
+      "io_device_id": "rpi_gpio",
+      "io_mode": "write"
+    },
+    {
+      "id": "RELAY_PELTIER",
+      "type": "relay",
+      "pin": 22,
+      "default": 0,
+      "io_device_id": "rpi_gpio",
+      "io_mode": "write"
+    },
+    {
+      "id": "STEPPER_DIR",
+      "type": "stepper",
+      "pin": 19,
+      "default": 0,
+      "io_device_id": "rpi_gpio",
+      "io_mode": "write"
+    },
+    {
+      "id": "STEPPER_STEP",
+      "type": "stepper",
+      "pin": 16,
+      "default": 0,
+      "io_device_id": "rpi_gpio",
+      "io_mode": "write"
+    },
+    {
+      "id": "STEPPER_ENABLE",
+      "type": "stepper",
+      "pin": 26,
+      "default": 0,
+      "io_device_id": "rpi_gpio",
+      "io_mode": "write"
+    }
+  ]
+}
